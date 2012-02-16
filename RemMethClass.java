@@ -102,7 +102,7 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	
 	/*
 	 * Check whether a msg is deliverable or should be stored in the buffer
-	 * TODO: ik weet niet 100% zeker of het zo goed is! (maar denk het wel)
+	 * 
 	 */
 	public boolean deliverable(MsgObj msg)
 	{
@@ -139,13 +139,61 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	 * We can check afterwards whether the list is ordered.
 	 * 
 	 * TODO: update the timeVector with info from the delivered msg
+	 * Merge buffers
 	 */
 	public void deliver(MsgObj msg)
 	{
+		//deliver the message
 		history.add(msg);
 		
+		//increase local clock
+		incTime();
+		
+		//update local timeVector
+		for (BufferItem b : msg.getBuffer())
+		{
+			for (int i = 0; i < nrOfNodes; i++)
+			{
+				timeVector[i] = Math.max(timeVector[i], b.timeVector[i]);
+			}
+		}
+		//merge S_buffer
+		insertMax(msg);
 	}
 	
+	/*
+	 * Insertmax merges the buffer in the msg with the local S_buffer
+	 */
+	public void insertMax(MsgObj msg)
+	{
+		boolean inlocalbuffer = false;
+		for (BufferItem b : msg.getBuffer())
+		{
+			for (BufferItem lb : S_buffer)
+			{
+				if (b.destination == lb.destination)
+				{
+					inlocalbuffer = true;
+					lb = max(b, lb); //replace the element in the S_buffer with the pairwise max
+				}
+			}
+			//if not exist in either buffer, store the one that exists
+			if (!inlocalbuffer)
+			{
+				S_buffer.add(b);
+			}
+		}
+	}
+	
+	public BufferItem max(BufferItem a, BufferItem b)
+	{
+		BufferItem n = new BufferItem(new int[nrOfNodes], a.destination);
+		for (int i = 0; i < nrOfNodes; i++)
+		{
+			n.timeVector[i] = Math.max(a.timeVector[i], b.timeVector[i]);
+		}
+		return n;
+	}
 	/*
 	 * store a msg in the buffer 
 	 */
@@ -214,7 +262,6 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 			}
 			catch (Exception e)
 			{
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		}
