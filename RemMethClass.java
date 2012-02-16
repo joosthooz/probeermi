@@ -138,17 +138,14 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	 * Deliver message; for now, store in the LinkedList.
 	 * We can check afterwards whether the list is ordered.
 	 * 
-	 * TODO: update the timeVector with info from the delivered msg
+	 * update the timeVector with info from the delivered msg
 	 * Merge buffers
 	 */
 	public void deliver(MsgObj msg)
 	{
 		//deliver the message
 		history.add(msg);
-		
-		//increase local clock
-		incTime();
-		
+			
 		//update local timeVector
 		for (BufferItem b : msg.getBuffer())
 		{
@@ -159,6 +156,9 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		}
 		//merge S_buffer
 		insertMax(msg);
+
+		//increase local clock
+		incTime();
 	}
 	
 	/*
