@@ -5,7 +5,9 @@ import java.rmi.AlreadyBoundException;
 import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
+import java.util.Arrays;
 import java.util.LinkedList;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 
 /**
@@ -15,35 +17,34 @@ import java.util.LinkedList;
  * TODO: waar moeten we de tijd increasen? send en receive waarschijnlijk.
  * Ook voor de source node bij het ontvangen van een msg, denk ik.
  * TODO: Pending msg buffer B
+ * TODO: Random Delay in send
  *
  */
 public class RemMethClass extends UnicastRemoteObject implements RMI_interface, Runnable
 {
 	String name;
 	int nodeNr;
-	String textdest;
-	boolean debug = true;
+	boolean debug = false;
 	boolean running = true;
 	int nrOfNodes;
 	int[] timeVector;
 	
-	LinkedList<BufferItem> S_buffer;
-	LinkedList<MsgObj> B_buffer;
-	LinkedList<MsgObj> history;
+	ConcurrentLinkedQueue<BufferItem> S_buffer;
+	ConcurrentLinkedQueue<MsgObj> B_buffer;
+	ConcurrentLinkedQueue<MsgObj> history;
 	
 	/*
 	 * Constructor - Initialize all the fields, and register the remote interface
 	 */
-	protected RemMethClass(int nodeNr, String dest, int n) throws RemoteException
+	protected RemMethClass(int nodeNr, int n) throws RemoteException
 	{
 		this.name = "node"+nodeNr;
-		this.textdest = dest;
 		this.nodeNr = nodeNr;
 		nrOfNodes = n;
 		initTimeVector(n);
-		S_buffer = new LinkedList<BufferItem>();
-		B_buffer = new LinkedList<MsgObj>();
-		history = new LinkedList<MsgObj>(); //for delivery
+		S_buffer = new ConcurrentLinkedQueue<BufferItem>();
+		B_buffer = new ConcurrentLinkedQueue<MsgObj>();
+		history = new ConcurrentLinkedQueue<MsgObj>(); //for delivery
 		try
 		{
 			java.rmi.Naming.bind(name, this);
@@ -70,13 +71,28 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		System.out.println(name+" : "+text);
 	}
 	
+	public void printHistory(){
+		for (MsgObj m : history){
+			m.print();
+		}
+	}
+	
 	/*
 	 * (non-Javadoc)
 	 * @see probeermi.RMI_interface#receive_msg(probeermi.MsgObj)
 	 */
 	@Override
-	public void receive_msg(MsgObj msg) throws RemoteException
-	{
+	public synchronized void receive_msg(MsgObj msg, int sleepTime) throws RemoteException
+	{	
+		try {
+			Thread.sleep(sleepTime);
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		System.out.print("Received by " + name + ": ");
+		msg.print();
+		System.out.println();
 		//fist, check if msg is deliverable, else store in buffer
 		if (deliverable(msg)) 
 		{
@@ -128,6 +144,7 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		{
 			if (bufitmtime[i] > timeVector[i])
 			{
+				debug("i = " + i + ", Buf: " + bufitmtime[i] + ", timeVector: " + timeVector[i]);
 				ret = false;
 			}
 		}
@@ -144,21 +161,23 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	public void deliver(MsgObj msg)
 	{
 		//deliver the message
+		System.out.println("Deliver to " + name + ": " + msg.getMessage() );
 		history.add(msg);
-			
-		//update local timeVector
-		for (BufferItem b : msg.getBuffer())
-		{
-			for (int i = 0; i < nrOfNodes; i++)
-			{
-				timeVector[i] = Math.max(timeVector[i], b.timeVector[i]);
-			}
-		}
+
 		//merge S_buffer
 		insertMax(msg);
-
+		
+		//update local timeVector
+		
+			for (int i = 0; i < nrOfNodes; i++)
+			{
+				timeVector[i] = Math.max(timeVector[i]+1, msg.getTimeVector()[i]);
+			}
+		
+		debug("voor:"+timeVector[nodeNr-1]);
 		//increase local clock
-		incTime();
+		//incTime();
+		debug("na:"+timeVector[nodeNr-1]);
 	}
 	
 	/*
@@ -202,13 +221,16 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		B_buffer.add(msg);
 	}
 	
-	public void send(MsgObj msg, int destination)
-	{
+	public synchronized void send(String s, int destination, int sleepTime)
+	{	
 		incTime();
+		MsgObj msg = new MsgObj(s,S_buffer,timeVector);
 		try
 		{
-			RemMethClass destObject = (RemMethClass) java.rmi.Naming.lookup("node"+destination);
-			destObject.receive_msg(msg);
+			RMI_interface destObject = (RMI_interface) java.rmi.Naming.lookup("node"+destination);
+			debug("Verstuurt " + s);
+			
+			destObject.receive_msg(msg, sleepTime);
 		}
 		catch (Exception ex)
 		{
@@ -216,7 +238,7 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 			System.exit(-1);
 		}
 		//add dest and timevector (bufferitem) to buffer
-		BufferItem itm = new BufferItem(timeVector, destination);
+		BufferItem itm = new BufferItem(timeVector.clone(), destination);
 		bufferInsert(itm);
 	}
 	
@@ -233,6 +255,7 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 				S_buffer.remove(b);
 			}
 		}
+
 		S_buffer.add(itm);
 	}
 	
@@ -241,7 +264,7 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	 */
 	public void incTime()
 	{
-		timeVector[nodeNr]++;
+		timeVector[nodeNr-1]++;
 	}
 
 	@Override
@@ -252,12 +275,7 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 				
 			try
 			{
-				debug("sleeping 2000");
 				Thread.sleep(2000);
-				debug("getting remote host");
-				RMI_interface destObject = (RMI_interface) java.rmi.Naming.lookup(textdest);
-				debug("printing text");
-				destObject.print("lalala groeten van "+name);
 				
 			}
 			catch (Exception e)
@@ -282,6 +300,17 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	private void debug(String msg)
 	{
 		if (debug) System.out.println(name+" : "+msg);
+	}
+	
+	private void debug(ConcurrentLinkedQueue<BufferItem> list)
+	{
+		if (debug)
+		{
+			for(BufferItem b: list)
+			{
+				debug(Arrays.toString(b.timeVector));
+			}
+		}
 	}
 	
 	private static final long serialVersionUID = -4676446028805100856L;

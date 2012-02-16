@@ -1,19 +1,26 @@
 package probeermi;
 
+import java.io.Serializable;
+import java.util.Arrays;
 import java.util.LinkedList;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * Objects of this class will contain a message, including the buffer and timestamp.
  * @author Joost
  *
  */
-public class MsgObj
+public class MsgObj implements Serializable 
 {
+	/**
+	 * 
+	 */
+
 	private final String message;
-	private final LinkedList<BufferItem> buffer;
+	private final ConcurrentLinkedQueue<BufferItem> buffer;
 	private final int[] timeVector;
 	
-	MsgObj(String msg, LinkedList<BufferItem> buf, int[] t)
+	MsgObj(String msg, ConcurrentLinkedQueue<BufferItem> buf, int[] t)
 	{
 		message = msg;
 		buffer = buf;
@@ -25,7 +32,7 @@ public class MsgObj
 		return message;
 	}
 
-	public final LinkedList<BufferItem> getBuffer()
+	public final ConcurrentLinkedQueue<BufferItem> getBuffer()
 	{
 		return buffer;
 	}
@@ -35,4 +42,18 @@ public class MsgObj
 		return timeVector;
 	}
 	
+	public void print(){
+		System.out.print("{" + message + ", ");
+		for (BufferItem b : buffer){
+			System.out.print("(");
+			b.print();
+			System.out.print(")");
+		}
+		System.out.print( ", " + Arrays.toString(timeVector));
+		System.out.print("}");
+	}
+	
+	
+	private static final long serialVersionUID = 8460313687966889668L;
 }
+

@@ -1,7 +1,14 @@
 package probeermi;
 
-public class BufferItem
+import java.io.Serializable;
+import java.util.Arrays;
+
+public class BufferItem implements Serializable
 {
+	/**
+	 * 
+	 */
+
 	final int[] timeVector;
 	final int destination;
 	
@@ -26,5 +33,10 @@ public class BufferItem
 		return destination;
 	}
 	
+	public void print(){
+		System.out.print(destination + ";" + Arrays.toString(timeVector));
+	}
+
 	
+	private static final long serialVersionUID = 1436495160511918082L;
 }

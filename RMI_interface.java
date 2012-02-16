@@ -14,7 +14,7 @@ public interface RMI_interface extends Remote
 	/*
 	 * Use this method to send a message to the remote host
 	 */
-	void receive_msg(MsgObj msg) throws RemoteException;
+	void receive_msg(MsgObj msg, int sleepTime) throws RemoteException;
 	
 	/*
 	 * method used for testing RMI
