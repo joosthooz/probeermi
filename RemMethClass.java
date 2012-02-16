@@ -77,13 +77,25 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	@Override
 	public void receive_msg(MsgObj msg) throws RemoteException
 	{
-		//fist, check if msg is deliverable, else store if buffer
+		//fist, check if msg is deliverable, else store in buffer
 		if (deliverable(msg)) 
 		{
 			deliver(msg);
 			
-			//TODO: check if msgs in the buffer can be delivered
-			
+			//check if msgs in the buffer can be delivered
+			boolean changed = true;
+			while (changed)
+			{
+				changed = false;
+				for (MsgObj m : B_buffer)
+				{
+					if (deliverable(m))
+					{
+						deliver(m);
+						changed = true;
+					}
+				}
+			}
 		}
 		else store(msg);
 	}
@@ -97,7 +109,7 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		boolean d = true;
 		for (BufferItem b : msg.getBuffer())
 		{
-			if (b.getDestination() == nodeNr && (b.getTimeVector(msg.getSource()) > timeVector[msg.getSource()]))
+			if (b.getDestination() == nodeNr && (!vectorLTE(b.getTimeVector())))
 			{
 				d = false;
 			}
@@ -106,12 +118,32 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	}
 	
 	/*
+	 * returns true if all timestamps in the bufferitem are smaller than or equal to the local
+	 * value
+	 */
+	public boolean vectorLTE(int[] bufitmtime)
+	{
+		boolean ret = true;
+		for (int i = 0; i < nrOfNodes; i++)
+		{
+			if (bufitmtime[i] > timeVector[i])
+			{
+				ret = false;
+			}
+		}
+		return ret;
+	}
+	
+	/*
 	 * Deliver message; for now, store in the LinkedList.
 	 * We can check afterwards whether the list is ordered.
+	 * 
+	 * TODO: update the timeVector with info from the delivered msg
 	 */
 	public void deliver(MsgObj msg)
 	{
 		history.add(msg);
+		
 	}
 	
 	/*
@@ -124,6 +156,7 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	
 	public void send(MsgObj msg, int destination)
 	{
+		incTime();
 		try
 		{
 			RemMethClass destObject = (RemMethClass) java.rmi.Naming.lookup("node"+destination);
@@ -155,6 +188,13 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		S_buffer.add(itm);
 	}
 	
+	/*
+	 * Increase local timestamp by 1
+	 */
+	public void incTime()
+	{
+		timeVector[nodeNr]++;
+	}
 
 	@Override
 	public void run()
