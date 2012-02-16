@@ -14,6 +14,7 @@ import java.util.LinkedList;
  * 
  * TODO: waar moeten we de tijd increasen? send en receive waarschijnlijk.
  * Ook voor de source node bij het ontvangen van een msg, denk ik.
+ * TODO: Pending msg buffer B
  *
  */
 public class RemMethClass extends UnicastRemoteObject implements RMI_interface, Runnable
@@ -26,7 +27,8 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	int nrOfNodes;
 	int[] timeVector;
 	
-	LinkedList<MsgObj> buffer;
+	LinkedList<BufferItem> S_buffer;
+	LinkedList<MsgObj> B_buffer;
 	LinkedList<MsgObj> history;
 	
 	/*
@@ -39,7 +41,8 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		this.nodeNr = nodeNr;
 		nrOfNodes = n;
 		initTimeVector(n);
-		buffer = new LinkedList<MsgObj>();
+		S_buffer = new LinkedList<BufferItem>();
+		B_buffer = new LinkedList<MsgObj>();
 		history = new LinkedList<MsgObj>(); //for delivery
 		try
 		{
@@ -116,14 +119,14 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	 */
 	public void store(MsgObj msg)
 	{
-		buffer.add(msg);
+		B_buffer.add(msg);
 	}
 	
-	public void send(MsgObj msg, String destination)
+	public void send(MsgObj msg, int destination)
 	{
 		try
 		{
-			RemMethClass destObject = (RemMethClass) java.rmi.Naming.lookup(destination);
+			RemMethClass destObject = (RemMethClass) java.rmi.Naming.lookup("node"+destination);
 			destObject.receive_msg(msg);
 		}
 		catch (Exception ex)
@@ -131,8 +134,26 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 			ex.printStackTrace();
 			System.exit(-1);
 		}
+		//add dest and timevector (bufferitem) to buffer
+		BufferItem itm = new BufferItem(timeVector, destination);
+		bufferInsert(itm);
 	}
 	
+	
+	/*
+	 * Insert new item into the buffer, remove any old elements
+	 */
+	public void bufferInsert(BufferItem itm)
+	{
+		for (BufferItem b : S_buffer)
+		{
+			if (b.destination == itm.destination)
+			{
+				S_buffer.remove(b);
+			}
+		}
+		S_buffer.add(itm);
+	}
 	
 
 	@Override
