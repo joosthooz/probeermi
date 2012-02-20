@@ -1,8 +1,7 @@
 package probeermi;
 
 import java.io.Serializable;
-import java.util.Arrays;
-import java.util.LinkedList;
+import java.util.Vector;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
@@ -18,9 +17,9 @@ public class MsgObj implements Serializable
 
 	private final String message;
 	private final ConcurrentLinkedQueue<BufferItem> buffer;
-	private final int[] timeVector;
+	private final Vector<Integer> timeVector;
 	
-	MsgObj(String msg, ConcurrentLinkedQueue<BufferItem> buf, int[] t)
+	MsgObj(String msg, ConcurrentLinkedQueue<BufferItem> buf, Vector<Integer> t)
 	{
 		message = msg;
 		buffer = buf;
@@ -37,7 +36,7 @@ public class MsgObj implements Serializable
 		return buffer;
 	}
 
-	public final int[] getTimeVector()
+	public final Vector<Integer> getTimeVector()
 	{
 		return timeVector;
 	}
@@ -49,7 +48,7 @@ public class MsgObj implements Serializable
 			b.print();
 			System.out.print(")");
 		}
-		System.out.print( ", " + Arrays.toString(timeVector));
+		System.out.print( ", " + timeVector.toString());
 		System.out.print("}");
 	}
 	

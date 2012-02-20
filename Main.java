@@ -12,6 +12,12 @@ public class Main
 	 */
 	public static void main(String[] args)
 	{
+		try {
+		java.rmi.registry.LocateRegistry.createRegistry(1099);
+		} catch (RemoteException e) {
+		e.printStackTrace();
+		}
+		
 		RemMethClass a1;
 		RemMethClass a2;
 		RemMethClass a3;
@@ -31,7 +37,8 @@ public class Main
 			/**
 			 * Example from slides
 			 */
-			for(int i = 0;i<100; i++){
+			for(int i = 0;i<100; i++)
+			{
 				a1.send("m1",2, 0);
 				a1.send("m2",3,0);
 				a3.send("m3",2,0);
@@ -41,8 +48,11 @@ public class Main
 			Thread.sleep(2000);
 			
 			a1.printHistory();
+			a1.printReceivedOrder();
 			a2.printHistory();
+			a2.printReceivedOrder();
 			a3.printHistory();
+			a3.printReceivedOrder();
 			
 			a1.DIE();
 			a2.DIE();

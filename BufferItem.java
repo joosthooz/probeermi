@@ -2,6 +2,7 @@ package probeermi;
 
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Vector;
 
 public class BufferItem implements Serializable
 {
@@ -9,23 +10,23 @@ public class BufferItem implements Serializable
 	 * 
 	 */
 
-	final int[] timeVector;
+	final Vector<Integer> timeVector;
 	final int destination;
 	
-	public BufferItem(int[] time, int dest)
+	public BufferItem(Vector<Integer> time, int dest)
 	{
 		timeVector = time;
 		this.destination = dest;
 	}
 
-	public final int[] getTimeVector()
+	public final Vector<Integer> getTimeVector()
 	{
 		return timeVector;
 	}
 	
 	public final int getTimeVector(int index)
 	{
-		return timeVector[index];
+		return timeVector.get(index);
 	}
 
 	public final int getDestination()
@@ -34,7 +35,7 @@ public class BufferItem implements Serializable
 	}
 	
 	public void print(){
-		System.out.print(destination + ";" + Arrays.toString(timeVector));
+		System.out.print(destination + ";" + timeVector.toString());
 	}
 
 	
