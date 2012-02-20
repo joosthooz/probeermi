@@ -22,8 +22,10 @@ public class MsgObj implements Serializable
 	MsgObj(String msg, ConcurrentLinkedQueue<BufferItem> buf, Vector<Integer> t)
 	{
 		message = msg;
-		buffer = buf;
-		timeVector = t;
+		buffer = new ConcurrentLinkedQueue<BufferItem>();
+		buffer.addAll(buf);
+		timeVector = new Vector<Integer>();
+		timeVector.addAll(t);
 	}
 	
 	public final String getMessage()

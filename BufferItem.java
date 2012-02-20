@@ -2,7 +2,10 @@ package probeermi;
 
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Vector;
+
+import javax.naming.InitialContext;
 
 public class BufferItem implements Serializable
 {
@@ -15,7 +18,8 @@ public class BufferItem implements Serializable
 	
 	public BufferItem(Vector<Integer> time, int dest)
 	{
-		timeVector = time;
+		timeVector = RemMethClass.initTimeVector(Main.nrOfNodes);
+		Collections.copy(timeVector, time);
 		this.destination = dest;
 	}
 

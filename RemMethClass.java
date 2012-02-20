@@ -2,6 +2,7 @@ package probeermi;
 
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
+import java.util.Collections;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -20,9 +21,8 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 {
 	String name;
 	int nodeNr;
-	boolean debug = false;
+	boolean debug = true;
 	boolean running = true;
-	int nrOfNodes;
 	Vector<Integer> timeVector;
 	
 	ConcurrentLinkedQueue<BufferItem> S_buffer;
@@ -33,12 +33,11 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	/*
 	 * Constructor - Initialize all the fields, and register the remote interface
 	 */
-	protected RemMethClass(int nodeNr, int n) throws RemoteException
+	protected RemMethClass(int nodeNr) throws RemoteException
 	{
 		this.name = "node"+nodeNr;
 		this.nodeNr = nodeNr;
-		nrOfNodes = n;
-		initTimeVector(n);
+		timeVector = initTimeVector(Main.nrOfNodes);
 		S_buffer = new ConcurrentLinkedQueue<BufferItem>();
 		B_buffer = new ConcurrentLinkedQueue<MsgObj>();
 		history = new ConcurrentLinkedQueue<MsgObj>(); //for delivery
@@ -54,13 +53,17 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		}
 	}
 	
-	private void initTimeVector(int n)
+	/*
+	 * this method can be called from other classes to create a new timeVector
+	 */
+	public static Vector<Integer> initTimeVector(int n)
 	{
-		timeVector = new Vector<Integer>(n);
+		Vector<Integer> t = new Vector<Integer>(n);
 		for (int i = 0; i < n; i++)
 		{
-			timeVector.set(i, 0);
+			t.add(0);
 		}
+		return t;
 	}
 	
 	@Override
@@ -94,7 +97,6 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		try {
 			Thread.sleep(sleepTime);
 		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		received.add(msg);
@@ -148,7 +150,7 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	public boolean vectorLTE(Vector<Integer> bufitmtime)
 	{
 		boolean ret = true;
-		for (int i = 0; i < nrOfNodes; i++)
+		for (int i = 0; i < Main.nrOfNodes; i++)
 		{
 			if (bufitmtime.get(i) > timeVector.get(i))
 			{
@@ -176,16 +178,12 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		insertMax(msg);
 		
 		//update local timeVector
-		
-			for (int i = 0; i < nrOfNodes; i++)
-			{
-				timeVector.set(Math.max(timeVector.get(i)+1, msg.getTimeVector().get(i)), i);
-			}
-		
-		debug("voor:"+timeVector.get(nodeNr-1));
+		incTime();
 		//increase local clock
-		//incTime();
-		debug("na:"+timeVector.get(nodeNr-1));
+			for (int i = 0; i < Main.nrOfNodes; i++)
+			{
+				timeVector.set(i, (Math.max(timeVector.get(i)+1, msg.getTimeVector().get(i))));
+			}		
 	}
 	
 	/*
@@ -214,8 +212,10 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	
 	public BufferItem max(BufferItem a, BufferItem b)
 	{
-		BufferItem n = new BufferItem(new Vector<Integer>(nrOfNodes), a.destination);
-		for (int i = 0; i < nrOfNodes; i++)
+		Vector<Integer> v = initTimeVector(Main.nrOfNodes);
+				
+		BufferItem n = new BufferItem(v, a.destination);
+		for (int i = 0; i < Main.nrOfNodes; i++)
 		{
 			n.timeVector.set(i, Math.max(a.timeVector.get(i), b.timeVector.get(i)));
 		}
@@ -239,6 +239,9 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	 */
 	public synchronized void send(String s, int destination, int sleepTime)
 	{	
+		debug(s);
+		debug(" buf " + S_buffer);
+		debug(timeVector.toString());
 		incTime();
 		MsgObj msg = new MsgObj(s,S_buffer,timeVector);
 
@@ -247,8 +250,7 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		h.start();
 		
 		//add dest and timevector (bufferitem) to buffer
-		@SuppressWarnings("unchecked")
-		BufferItem itm = new BufferItem((Vector<Integer>)timeVector.clone(), destination);
+		BufferItem itm = new BufferItem(timeVector, destination);
 		bufferInsert(itm);
 	}
 	
@@ -272,9 +274,11 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	/*
 	 * Increase local timestamp by 1
 	 */
-	public void incTime()
+	public synchronized void incTime()
 	{
-		timeVector.set(nodeNr-1, timeVector.get(nodeNr-1)+1);
+		int time = timeVector.get(nodeNr-1);
+		time++;
+		timeVector.set(nodeNr-1, time);
 	}
 
 	@Override
