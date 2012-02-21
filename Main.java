@@ -2,8 +2,6 @@ package probeermi;
 
 import java.rmi.RemoteException;
 
-
-
 public class Main
 {
 
@@ -41,9 +39,12 @@ public class Main
 			 */
 			for(int i = 0;i<3; i++)
 			{
-				a1.send("m"+i,2, 0);
-				a1.send("n"+i,3,0);
-				a3.send("o"+i,2,0);
+				RMI_interface th1 = (RMI_interface) java.rmi.Naming.lookup("node"+1);
+				RMI_interface th2 = (RMI_interface) java.rmi.Naming.lookup("node"+1);
+				RMI_interface th3 = (RMI_interface) java.rmi.Naming.lookup("node"+1);
+				th1.prepareToSend(2, "m"+i, 0);
+				th1.prepareToSend(3, "n"+i,0);
+				th3.prepareToSend(2, "o"+i,0);
 			}
 			
 			/*
@@ -51,11 +52,14 @@ public class Main
 			 */
 //			for(int i = 0;i<100; i++)
 //			{
-//				a1.send("m"+i,((int)Math.random()*3)+1, (int)Math.random()*2000);
-//				a1.send("n"+i,((int)Math.random()*3)+1,(int)Math.random()*2000);
-//				a3.send("o"+i,((int)Math.random()*3)+1,(int)Math.random()*2000);
+//				RMI_interface th1 = (RMI_interface) java.rmi.Naming.lookup("node"+1);
+//				RMI_interface th2 = (RMI_interface) java.rmi.Naming.lookup("node"+1);
+//				RMI_interface th3 = (RMI_interface) java.rmi.Naming.lookup("node"+1);
+//				th1.prepareToSend(((int)Math.random()*3)+1,"m"+i, (int)Math.random()*2000);
+//				th2.prepareToSend(((int)Math.random()*3)+1,"n"+i,(int)Math.random()*2000);
+//				th3.prepareToSend(((int)Math.random()*3)+1,"o"+i,(int)Math.random()*2000);
 //			}
-			
+
 			Thread.sleep(2000);
 			
 			a1.printHistory();
@@ -71,7 +75,6 @@ public class Main
 		}
 		catch (Exception e)
 		{
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 			
 			System.exit(-99);

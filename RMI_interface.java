@@ -20,4 +20,10 @@ public interface RMI_interface extends Remote
 	 * method used for testing RMI
 	 */
 	public void print(String text) throws RemoteException;
+	
+	/*
+	 * Adds a new message into the sendBuffer that will be sent by this thread the next time it runs.
+	 * Arguments are the destination node, the message, and the time this message must be delayed.
+	 */
+	public void prepareToSend(int destination, String message, int sleepTime) throws RemoteException;
 }

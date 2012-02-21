@@ -25,6 +25,7 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	boolean running = true;
 	Vector<Integer> timeVector;
 	
+	ConcurrentLinkedQueue<SendIntent> sendBuffer; //msgs to be sent by this thread
 	ConcurrentLinkedQueue<BufferItem> S_buffer;
 	ConcurrentLinkedQueue<MsgObj> B_buffer;
 	ConcurrentLinkedQueue<MsgObj> history;
@@ -38,6 +39,8 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		this.name = "node"+nodeNr;
 		this.nodeNr = nodeNr;
 		timeVector = initTimeVector(Main.nrOfNodes);
+		
+		sendBuffer = new ConcurrentLinkedQueue<SendIntent>();
 		S_buffer = new ConcurrentLinkedQueue<BufferItem>();
 		B_buffer = new ConcurrentLinkedQueue<MsgObj>();
 		history = new ConcurrentLinkedQueue<MsgObj>(); //for delivery
@@ -54,7 +57,7 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	}
 	
 	/*
-	 * this method can be called from other classes to create a new timeVector
+	 * this static method can be called from other classes to create a new timeVector
 	 */
 	public static Vector<Integer> initTimeVector(int n)
 	{
@@ -67,26 +70,36 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	}
 	
 	@Override
-	public void print(String text) throws RemoteException
+	public synchronized void print(String text) throws RemoteException
 	{
 		System.out.println(name+" : "+text);
 	}
 	
-	public void printHistory(){
+	public synchronized void printHistory(){
 		System.out.println("History of "+name+":");
 		for (MsgObj m : history){
 			m.print();
 		}
 		System.out.println("\n");
 	}
-	public void printReceivedOrder(){
-		System.out.println("Received order of "+name+":\n");
+	public synchronized void printReceivedOrder(){
+		System.out.println("Received order of "+name+":");
 		for (MsgObj m : received){
 			m.print();
 		}
-		System.out.println();
+		System.out.println("\n");
 	}
 	
+	/*
+	 * (non-Javadoc)
+	 * @see probeermi.RMI_interface#prepareToSend(int, java.lang.String, int)
+	 */
+	@Override
+	public void prepareToSend(int destination, String message, int sleepTime)
+	{
+		SendIntent intent = new SendIntent(destination, message, sleepTime);
+		sendBuffer.add(intent);
+	}
 	/*
 	 * (non-Javadoc)
 	 * @see probeermi.RMI_interface#receive_msg(probeermi.MsgObj)
@@ -100,7 +113,6 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 			e.printStackTrace();
 		}
 		received.add(msg);
-		System.out.print("Received by " + name + ": ");
 		msg.print();
 		System.out.println();
 		//fist, check if msg is deliverable, else store in buffer
@@ -130,7 +142,7 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	 * Check whether a msg is deliverable or should be stored in the buffer
 	 * 
 	 */
-	public boolean deliverable(MsgObj msg)
+	private boolean deliverable(MsgObj msg)
 	{
 		boolean d = true;
 		for (BufferItem b : msg.getBuffer())
@@ -147,7 +159,7 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	 * returns true if all timestamps in the bufferitem are smaller than or equal to the local
 	 * value
 	 */
-	public boolean vectorLTE(Vector<Integer> bufitmtime)
+	private boolean vectorLTE(Vector<Integer> bufitmtime)
 	{
 		boolean ret = true;
 		for (int i = 0; i < Main.nrOfNodes; i++)
@@ -168,10 +180,9 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	 * update the timeVector with info from the delivered msg
 	 * Merge buffers
 	 */
-	public void deliver(MsgObj msg)
+	private void deliver(MsgObj msg)
 	{
 		//deliver the message
-		System.out.println("Deliver to " + name + ": " + msg.getMessage() );
 		history.add(msg);
 
 		//merge S_buffer
@@ -189,7 +200,7 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	/*
 	 * Insertmax merges the buffer in the msg with the local S_buffer
 	 */
-	public void insertMax(MsgObj msg)
+	private void insertMax(MsgObj msg)
 	{
 		boolean inlocalbuffer = false;
 		for (BufferItem b : msg.getBuffer())
@@ -210,10 +221,10 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		}
 	}
 	
-	public BufferItem max(BufferItem a, BufferItem b)
+	private BufferItem max(BufferItem a, BufferItem b)
 	{
 		Vector<Integer> v = initTimeVector(Main.nrOfNodes);
-				
+		
 		BufferItem n = new BufferItem(v, a.destination);
 		for (int i = 0; i < Main.nrOfNodes; i++)
 		{
@@ -224,24 +235,21 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	/*
 	 * store a msg in the buffer 
 	 */
-	public void store(MsgObj msg)
+	private void store(MsgObj msg)
 	{
 		B_buffer.add(msg);
 	}
 	
 	/*
 	 * Sends a message to another host, and updates the S_Buffer.
-	 * Uses a seperate thread for sending to enable the message reception
+	 * Uses a separate thread for sending to enable the message reception
 	 * by the other hosts to be delayed by an arbitrary amount of time.
 	 * 
 	 * This method is synchronized because it increases the local Time, and
 	 * updates the S_Buffer. The TimeVector may not be changed in between these actions.
 	 */
-	public synchronized void send(String s, int destination, int sleepTime)
+	private synchronized void send(String s, int destination, int sleepTime)
 	{	
-		debug(s);
-		debug(" buf " + S_buffer);
-		debug(timeVector.toString());
 		incTime();
 		MsgObj msg = new MsgObj(s,S_buffer,timeVector);
 
@@ -254,11 +262,10 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		bufferInsert(itm);
 	}
 	
-	
 	/*
-	 * Insert new item into the buffer, remove any old elements
+	 * Insert new item into the S_Buffer, remove any old elements
 	 */
-	public void bufferInsert(BufferItem itm)
+	private void bufferInsert(BufferItem itm)
 	{
 		for (BufferItem b : S_buffer)
 		{
@@ -274,7 +281,7 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	/*
 	 * Increase local timestamp by 1
 	 */
-	public synchronized void incTime()
+	private synchronized void incTime()
 	{
 		int time = timeVector.get(nodeNr-1);
 		time++;
@@ -289,7 +296,13 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 				
 			try
 			{
-				Thread.sleep(2000);
+				if (sendBuffer.isEmpty()) Thread.sleep(2000);
+				else
+				{
+					//send messages in the sendBuffer
+					SendIntent s = sendBuffer.poll();
+					send(s.getMessage(), s.getDestination(), s.getSleepTime());
+				}
 				
 			}
 			catch (Exception e)
