@@ -7,12 +7,12 @@ import java.util.Vector;
 
 import javax.naming.InitialContext;
 
+/**
+ * Objects of this class represent an item that is stored in an S_Buffer.
+ * it stores a timevector and a destination.
+ */
 public class BufferItem implements Serializable
 {
-	/**
-	 * 
-	 */
-
 	final Vector<Integer> timeVector;
 	final int destination;
 	

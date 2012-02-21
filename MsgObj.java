@@ -5,7 +5,7 @@ import java.util.Vector;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
- * Objects of this class will contain a message, including the buffer and timestamp.
+ * Objects of this class will represent a message, including the buffer and timestamp.
  * @author Joost
  *
  */

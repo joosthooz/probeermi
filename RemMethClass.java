@@ -2,20 +2,19 @@ package probeermi;
 
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
-import java.util.Collections;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 
 /**
- * This class will contain remote methods.
- * @author Joost
+ * This class is a node in the distributed system. It is runnable and contains methods that may be invoked remotely.
+ * @field timeVector - the local timeVector. It is updated by {@link incTime()} and {@link deliver(msg)}
+ * @field sendBuffer - contains messages to be sent by this node. they can be inserted by {@link prepareToSend()}
+ * @field S_buffer - contains BufferItems (see {@link BufferItem} that will be attached to messages to other nodes.
+ * @field B_buffer - contains received messages that could not be delivered yet. They will be checked every time a message is delivered.
+ * @field history - when a message is delivered, it is stored in this buffer.
+ * @field received - for debugging purposes; it stores all messages in the same order of receiving them
  * 
- * 
- * 
- * TODO: Pending msg buffer B
- * TODO: Random Delay in send
- *
  */
 public class RemMethClass extends UnicastRemoteObject implements RMI_interface, Runnable
 {
@@ -57,7 +56,7 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	}
 	
 	/*
-	 * this static method can be called from other classes to create a new timeVector
+	 * This static method can be called from other classes to create a new timeVector of the specified size
 	 */
 	public static Vector<Integer> initTimeVector(int n)
 	{
@@ -69,12 +68,20 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		return t;
 	}
 	
+	/*
+	 * Remote invokable method that prints a string to stdout
+	 * (non-Javadoc)
+	 * @see probeermi.RMI_interface#print(java.lang.String)
+	 */
 	@Override
 	public synchronized void print(String text) throws RemoteException
 	{
 		System.out.println(name+" : "+text);
 	}
 	
+	/*
+	 * Prints the order in which messages were delivered to stdout
+	 */
 	public synchronized void printHistory(){
 		System.out.println("History of "+name+":");
 		for (MsgObj m : history){
@@ -82,6 +89,9 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		}
 		System.out.println("\n");
 	}
+	/*
+	 * Prints the order in which message arrived at this node to stdout.
+	 */
 	public synchronized void printReceivedOrder(){
 		System.out.println("Received order of "+name+":");
 		for (MsgObj m : received){
@@ -90,8 +100,10 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		System.out.println("\n");
 	}
 	
-	/*
-	 * (non-Javadoc)
+	/**
+	 * Inserts a new message into the sendBuffer and notifies the thread so it will become runnable.
+	 * This is a remote method that can be invoked by a supervising thread that instructs all the nodes
+	 * to send certain messages.
 	 * @see probeermi.RMI_interface#prepareToSend(int, java.lang.String, int)
 	 */
 	@Override
@@ -99,22 +111,18 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	{
 		SendIntent intent = new SendIntent(destination, message, sleepTime);
 		sendBuffer.add(intent);
+		this.notify(); //interrupt the sleeping thread
 	}
-	/*
-	 * (non-Javadoc)
+	/**
+	 * 
 	 * @see probeermi.RMI_interface#receive_msg(probeermi.MsgObj)
 	 */
 	@Override
-	public synchronized void receive_msg(MsgObj msg, int sleepTime) throws RemoteException
+	public synchronized void receive_msg(MsgObj msg) throws RemoteException
 	{	
-		try {
-			Thread.sleep(sleepTime);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
 		received.add(msg);
-		msg.print();
-		System.out.println();
+		if (debug) msg.print();
+		
 		//fist, check if msg is deliverable, else store in buffer
 		if (deliverable(msg)) 
 		{
@@ -173,12 +181,13 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		return ret;
 	}
 	
-	/*
+	/**
 	 * Deliver message; for now, store in the LinkedList.
 	 * We can check afterwards whether the list is ordered.
 	 * 
-	 * update the timeVector with info from the delivered msg
-	 * Merge buffers
+	 * updates the timeVector with info from the delivered msg
+	 * Merges the buffer from the msg with the local S_buffer
+	 * @param msg - the message to be delivered 
 	 */
 	private void deliver(MsgObj msg)
 	{
@@ -188,12 +197,13 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		//merge S_buffer
 		insertMax(msg);
 		
-		//update local timeVector
-		incTime();
 		//increase local clock
+		incTime();
+		
+		//update local timeVector
 			for (int i = 0; i < Main.nrOfNodes; i++)
 			{
-				timeVector.set(i, (Math.max(timeVector.get(i)+1, msg.getTimeVector().get(i))));
+				timeVector.set(i, (Math.max(timeVector.get(i), msg.getTimeVector().get(i))));
 			}		
 	}
 	
@@ -221,6 +231,9 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		}
 	}
 	
+	/*
+	 * Return a new BufferItem that contains the pairwise maximum values of parameters a and b
+	 */
 	private BufferItem max(BufferItem a, BufferItem b)
 	{
 		Vector<Integer> v = initTimeVector(Main.nrOfNodes);
@@ -240,13 +253,17 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		B_buffer.add(msg);
 	}
 	
-	/*
+	/**
 	 * Sends a message to another host, and updates the S_Buffer.
 	 * Uses a separate thread for sending to enable the message reception
 	 * by the other hosts to be delayed by an arbitrary amount of time.
 	 * 
 	 * This method is synchronized because it increases the local Time, and
 	 * updates the S_Buffer. The TimeVector may not be changed in between these actions.
+	 * @param s - the contents of the message
+	 * @param destination - The destination node
+	 * @param sleepTime - the minimum amount of time that the sending thread must be delayed (there is no upper bound
+	 * because there is no way to tell when the thread will actually become running)
 	 */
 	private synchronized void send(String s, int destination, int sleepTime)
 	{	
@@ -257,7 +274,7 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		Hermes h = new Hermes(msg, destination, sleepTime);
 		h.start();
 		
-		//add dest and timevector (bufferitem) to buffer
+		//add dest and timevector (bufferitem) to buffer (the constructor copies the Vector)
 		BufferItem itm = new BufferItem(timeVector, destination);
 		bufferInsert(itm);
 	}
@@ -283,11 +300,16 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	 */
 	private synchronized void incTime()
 	{
-		int time = timeVector.get(nodeNr-1);
-		time++;
-		timeVector.set(nodeNr-1, time);
+		timeVector.set(nodeNr-1, timeVector.get(nodeNr-1)+1);
 	}
 
+	/*
+	 * The thread code itself; check if there are messages to be sent. if there arent any; sleep for 2 seconds.
+	 * otherwise, send a message. 2 seconds is a long time but the send method notifies this thread so 
+	 * it will become runnable when a message is inserted to the sendBuffer.
+	 * (non-Javadoc)
+	 * @see java.lang.Runnable#run()
+	 */
 	@Override
 	public void run()
 	{
@@ -313,6 +335,9 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		
 	}
 	
+	/*
+	 * Causes this thread to clean up and stop running.
+	 */
 	public void DIE()
 	{
 		running = false;
@@ -324,11 +349,17 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 		}
 	}
 	
+	/*
+	 * Prints a message to stdout
+	 */
 	private void debug(String msg)
 	{
 		if (debug) System.out.println(name+" : "+msg);
 	}
 	
+	/*
+	 * prints the contents of a concurrentlinkedqueue to stdout
+	 */
 	private void debug(ConcurrentLinkedQueue<BufferItem> list)
 	{
 		if (debug)

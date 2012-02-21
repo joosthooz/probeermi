@@ -2,6 +2,11 @@ package probeermi;
 
 import java.io.Serializable;
 
+/*
+ * Objects of this class represent an intent of sending a message.
+ * A dispatcher thread can give the command to a node to send a message to another node.
+ * Each thread has a buffer for storing these intents.
+ */
 public class SendIntent implements Serializable 
 {
 

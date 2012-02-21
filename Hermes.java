@@ -1,5 +1,10 @@
 package probeermi;
 
+
+/*
+ * This is a sending thread, each message will be sent by its own Hermes thread.
+ * It can wait a predefined nr of milliseconds, separate from the rest of the program. 
+ */
 public class Hermes extends Thread 
 {
 	boolean debug = false;
@@ -22,7 +27,7 @@ public class Hermes extends Thread
 			sleep(sleepTime);
 			RMI_interface destObject = (RMI_interface) java.rmi.Naming.lookup("node"+dest);
 			debug("Verstuurt " + msg.getMessage());
-			destObject.receive_msg(msg, sleepTime);
+			destObject.receive_msg(msg);
 		} 
 		catch (Exception e) 
 		{
