@@ -104,10 +104,11 @@ public class RemMethClass extends UnicastRemoteObject implements RMI_interface, 
 	 * Inserts a new message into the sendBuffer and notifies the thread so it will become runnable.
 	 * This is a remote method that can be invoked by a supervising thread that instructs all the nodes
 	 * to send certain messages.
+	 * It needs to be synchronized to allow notify()
 	 * @see probeermi.RMI_interface#prepareToSend(int, java.lang.String, int)
 	 */
 	@Override
-	public void prepareToSend(int destination, String message, int sleepTime)
+	public synchronized void prepareToSend(int destination, String message, int sleepTime)
 	{
 		SendIntent intent = new SendIntent(destination, message, sleepTime);
 		sendBuffer.add(intent);
